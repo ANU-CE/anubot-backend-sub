@@ -13,6 +13,8 @@ import openai
 
 import asyncio
 
+import uvicorn
+
 #for Dev
 from dotenv import load_dotenv
 import os
@@ -68,9 +70,10 @@ def build_prompt(question: str, references: list) -> tuple[str, str]:
     prompt = f"""
     당신은 안동대학교의 궁금한 점을 답변해 주는 챗봇, 아누봇입니다.
     사용자의 질문은 다음과 같습니다.: '{question}'
-    질문과 관련된 것으로 추정되는 자료를 몇개 첨부하겠씁니다.
-    만약 자료가 질문과 관련이 없다면 아예 인용하지 마세요.
+    질문과 관련된 것으로 추정되는 자료를 몇개 첨부하겠습니다.
+    당신은 현재 안동대 주변 식당가, 기숙사식, 사무실이나 부서의 전화번호, 장학금에 대한 정보만 알고있으므로, 그 외의 질문은 답변의 정확도가 떨어진다고 통보하세요.
     링크가 있다면 링크의 원문을 그대로 이용하세요.
+
 
     참고자료:
     """.strip()
@@ -79,7 +82,7 @@ def build_prompt(question: str, references: list) -> tuple[str, str]:
 
     for i, reference in enumerate(references, start=1):
         text = reference.payload["plain_text"].strip()
-        references_text += f"\n[{i}]: {text}"
+        references_text += f"\n{text}"
 
     prompt += (
         references_text
@@ -99,7 +102,7 @@ async def prompt_ask(question: str, callback_url: str):
     prompt, references = build_prompt(question, similar_docs)
 
     response = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo-16k",
+        model="gpt-3.5-turbo",
         messages=[
             {"role": "user", "content": prompt},
         ],
@@ -121,15 +124,15 @@ async def prompt_ask(question: str, callback_url: str):
     }
     responseCode = requests.post(callback_url, json=responseBody)
     print(final_response)
-    print('반환중 3/3')
+    print('반환 완료!')
 
-app = FastAPI()
+app = FastAPI(title='anubot sub backend', description='anubot sub backend, written by FastAPI', version='1.0')
 
-@app.get('/')
+@app.get('/', description='Hello World')
 def default_route():
     return {'Hello':"GET"}
 
-@app.post(path='/api/v1/ask', response_model=KakaoAPI)
+@app.post(path='/api/v1/ask', response_model=KakaoAPI, description='API for KakaoTalk Chatbot, with Callback Function')
 async def ask(item: KakaoAPI):
     try:
         task = asyncio.create_task(prompt_ask(item.userRequest.utterance, item.userRequest.callbackUrl))
@@ -141,3 +144,5 @@ async def ask(item: KakaoAPI):
         "useCallback" : True
     })
 
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=5000, reload=True)
