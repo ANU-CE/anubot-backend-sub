@@ -4,6 +4,9 @@ from fastapi import FastAPI
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import ORJSONResponse
 
+import asyncio
+import uvicorn
+
 from typing import Optional
 from pydantic import BaseModel
 
@@ -11,13 +14,14 @@ from pydantic import BaseModel
 from qdrant_client import QdrantClient
 import openai
 
-import asyncio
-
-import uvicorn
-
 #for Dev
 from dotenv import load_dotenv
 import os
+
+#for DB
+from sqlalchemy import create_engine
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
 
 load_dotenv(verbose=True)
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
@@ -29,6 +33,12 @@ EMBEDDING_MODEL = 'text-embedding-ada-002'
 EMBEDDING_CTX_LENGTH = 8191
 EMBEDDING_ENCODING = 'cl100k_base'
 
+DB_USERNAME = os.getenv('DB_USERNAME')
+DB_PASSWORD = os.getenv('DB_PASSWORD')
+DB_HOST = os.getenv('DB_HOST')
+DB_PORT = os.getenv('DB_PORT')
+DB_DATABASE = os.getenv('DB_DATABASE')
+
 openai.api_key = OPENAI_API_KEY
 
 COLLECTION_NAME = 'anubot-unified'
@@ -37,6 +47,18 @@ qdrant_client = QdrantClient(
     url = QDRANT_URL,
     port= QDRANT_PORT, 
 )
+
+engine = create_engine('mysql+pymysql://'+DB_USERNAME+':'+DB_PASSWORD+'@'+DB_HOST+':'+DB_PORT+'/'+DB_DATABASE, echo=True)
+Session = sessionmaker(bind=engine)
+Base = declarative_base()
+
+
+class Chat(Base):
+    __tablename__ = 'Chats'
+    id = Column(Integer, primary_key=True)
+    chat = Column(String(255))
+    reply = Column(String(255))
+    datezone = Column(DateTime, server_default=text('CURRENT_TIMESTAMP'))
 
 class KakaoUser(BaseModel):
     id: str
@@ -66,7 +88,20 @@ class KakaoAPI(BaseModel):
     intent: dict
     userRequest: KakaoCallbackRequest
 
-def build_prompt(question: str, references: list) -> tuple[str, str]:
+def get_recent_chats(id):
+    session = Session()
+    chats = session.query(Chat).filter(Chat.id == id).order_by(Chat.datezone.desc()).limit(3).all()
+    session.close()
+    return [(chat.chat, chat.reply) for chat in chats] if chats else []
+
+def save_ask(question, final_response, id):
+    session = Session()
+    chat = Chat(chat=question, reply=final_response, id=id)
+    session.add(chat)
+    session.commit()
+    session.close()
+
+def build_prompt(question: str, references: list, saved_ask: str) -> tuple[str, str, str]:
     prompt = f"""
     당신은 안동대학교의 궁금한 점을 답변해 주는 챗봇, 아누봇입니다.
     사용자의 질문은 다음과 같습니다.: '{question}'
@@ -86,20 +121,23 @@ def build_prompt(question: str, references: list) -> tuple[str, str]:
 
     prompt += (
         references_text
-        + ""
+        + "또, 다음은 최근에 사용자와 당신이 주고받은 3개의 질문-답변 쌍입니다. 이를 참고하여 답변을 작성하세요."
+        + saved_ask
     )
     return prompt, references_text
 
 
-async def prompt_ask(question: str, callback_url: str):
+async def prompt_ask(question: str, callback_url: str, id: str):
     similar_docs = qdrant_client.search(
         collection_name='anubot-unified',
         query_vector=openai.Embedding.create(input=question, model=EMBEDDING_MODEL)["data"][0]["embedding"],
         limit=3,
         append_payload=True,
     )
+    saved_ask = get_recent_chats(id)
+
     print('생성중')
-    prompt, references = build_prompt(question, similar_docs)
+    prompt, references = build_prompt(question, similar_docs, saved_ask)
 
     response = openai.ChatCompletion.create(
         model="gpt-3.5-turbo",
@@ -125,6 +163,8 @@ async def prompt_ask(question: str, callback_url: str):
     responseCode = requests.post(callback_url, json=responseBody)
     print(final_response)
     print('반환 완료!')
+    save_ask(question, final_response, id)
+    print('저장 완료!')
 
 app = FastAPI(title='anubot sub backend', description='anubot sub backend, written by FastAPI', version='1.0')
 
@@ -135,7 +175,7 @@ def default_route():
 @app.post(path='/api/v1/ask', response_model=KakaoAPI, description='API for KakaoTalk Chatbot, with Callback Function')
 async def ask(item: KakaoAPI):
     try:
-        task = asyncio.create_task(prompt_ask(item.userRequest.utterance, item.userRequest.callbackUrl))
+        task = asyncio.create_task(prompt_ask(item.userRequest.utterance, item.userRequest.callbackUrl, item.userRequest.user.id))
     except requests.exceptions.ReadTimeout:
         pass
     print('반환중')
