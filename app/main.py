@@ -19,9 +19,12 @@ from dotenv import load_dotenv
 import os
 
 #for DB
-from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, text
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.sql import func
+from datetime import datetime, timezone, timedelta
+
 
 load_dotenv(verbose=True)
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
@@ -54,11 +57,11 @@ Base = declarative_base()
 
 
 class Chat(Base):
-    __tablename__ = 'Chats'
-    id = Column(Integer, primary_key=True)
+    __tablename__ = 'Talks'
+    id = Column(String(255), primary_key=True)
     chat = Column(String(255))
     reply = Column(String(255))
-    datezone = Column(DateTime, server_default=text('CURRENT_TIMESTAMP'))
+    datetime = Column(DateTime, server_default=func.now())
 
 class KakaoUser(BaseModel):
     id: str
@@ -90,9 +93,9 @@ class KakaoAPI(BaseModel):
 
 def get_recent_chats(id):
     session = Session()
-    chats = session.query(Chat).filter(Chat.id == id).order_by(Chat.datezone.desc()).limit(3).all()
+    chats = session.query(Chat).filter(Chat.id == id).order_by(Chat.datetime.desc()).limit(3).all()
     session.close()
-    return [(chat.chat, chat.reply) for chat in chats] if chats else []
+    return '\n\n'.join([f'{chat.chat}\n{chat.reply}' for chat in chats]) if chats else ''
 
 def save_ask(question, final_response, id):
     session = Session()
@@ -101,16 +104,14 @@ def save_ask(question, final_response, id):
     session.commit()
     session.close()
 
-def build_prompt(question: str, references: list, saved_ask: str) -> tuple[str, str, str]:
+def build_prompt(question: str, references: list, saved_ask: str) -> str:
     prompt = f"""
     당신은 안동대학교의 궁금한 점을 답변해 주는 챗봇, 아누봇입니다.
     사용자의 질문은 다음과 같습니다.: '{question}'
-    질문과 관련된 것으로 추정되는 자료를 몇개 첨부하겠습니다.
     당신은 현재 안동대 주변 식당가, 기숙사식, 사무실이나 부서의 전화번호, 장학금에 대한 정보만 알고있으므로, 그 외의 질문은 답변의 정확도가 떨어진다고 통보하세요.
     링크가 있다면 링크의 원문을 그대로 이용하세요.
 
-
-    참고자료:
+    자료:
     """.strip()
 
     references_text = ""
@@ -121,10 +122,19 @@ def build_prompt(question: str, references: list, saved_ask: str) -> tuple[str, 
 
     prompt += (
         references_text
-        + "또, 다음은 최근에 사용자와 당신이 주고받은 3개의 질문-답변 쌍입니다. 이를 참고하여 답변을 작성하세요."
-        + saved_ask
+        + """\n 
+        만약 내용이 없다면 첫 대화이니 절대 질문과 답변을 지어내지 마세요! 
+        그리고 '사용자:', '아누봇:' 과 같은 표현은 절대 하지 마세요. 매우 중요합니다. 꼭 지키세요.
+        또, 다음은 최근에 사용자와 당신이 주고받은 3개의 질문-답변 쌍이며 답변에 이를 참고할 수 있습니다.
+        """
     )
-    return prompt, references_text
+    
+    print(saved_ask)
+
+    for i, chat in enumerate(saved_ask.split('\n\n'), start=1):
+        prompt += f"\n\n{i}. {chat}"
+
+    return prompt
 
 
 async def prompt_ask(question: str, callback_url: str, id: str):
@@ -137,10 +147,10 @@ async def prompt_ask(question: str, callback_url: str, id: str):
     saved_ask = get_recent_chats(id)
 
     print('생성중')
-    prompt, references = build_prompt(question, similar_docs, saved_ask)
+    prompt= build_prompt(question, similar_docs, saved_ask)
 
     response = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",
+        model="gpt-3.5-turbo-16k",
         messages=[
             {"role": "user", "content": prompt},
         ],
