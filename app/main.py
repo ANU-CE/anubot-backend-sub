@@ -95,7 +95,8 @@ def get_recent_chats(id):
     session = Session()
     chats = session.query(Chat).filter(Chat.id == id).order_by(Chat.datetime.desc()).limit(3).all()
     session.close()
-    return '\n\n'.join([f'{chat.chat}\n{chat.reply}' for chat in chats]) if chats else ''
+    print (chats)
+    return [f'{chat.chat}\n{chat.reply}' for chat in chats] if chats else []
 
 def save_ask(question, final_response, id):
     session = Session()
@@ -104,7 +105,7 @@ def save_ask(question, final_response, id):
     session.commit()
     session.close()
 
-def build_prompt(question: str, references: list, saved_ask: str) -> str:
+def build_prompt(question: str, references: list, saved_ask: list) -> str:
     prompt = f"""
     당신은 안동대학교의 궁금한 점을 답변해 주는 챗봇, 아누봇입니다.
     사용자의 질문은 다음과 같습니다.: '{question}'
@@ -123,17 +124,18 @@ def build_prompt(question: str, references: list, saved_ask: str) -> str:
     prompt += (
         references_text
         + """\n 
-        만약 내용이 없다면 첫 대화이니 절대 질문과 답변을 지어내지 마세요! 
         그리고 '사용자:', '아누봇:' 과 같은 표현은 절대 하지 마세요. 매우 중요합니다. 꼭 지키세요.
-        또, 다음은 최근에 사용자와 당신이 주고받은 3개의 질문-답변 쌍이며 답변에 이를 참고할 수 있습니다.
         """
     )
+
+    prompt += "최근 대화:\n"
+
+    if saved_ask:
+        prompt += "다음은 최근 대화입니다."
+        prompt += "\n\n".join([f"{i}. {chat}" for i, chat in enumerate(saved_ask, start=1)])
+    else:
+        prompt += "첫 대화입니다. 질문과 답변을 지어내지 마세요!"
     
-    print(saved_ask)
-
-    for i, chat in enumerate(saved_ask.split('\n\n'), start=1):
-        prompt += f"\n\n{i}. {chat}"
-
     return prompt
 
 
@@ -141,7 +143,7 @@ async def prompt_ask(question: str, callback_url: str, id: str):
     similar_docs = qdrant_client.search(
         collection_name='anubot-unified',
         query_vector=openai.Embedding.create(input=question, model=EMBEDDING_MODEL)["data"][0]["embedding"],
-        limit=3,
+        limit=5,
         append_payload=True,
     )
     saved_ask = get_recent_chats(id)
