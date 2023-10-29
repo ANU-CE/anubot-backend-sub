@@ -10,7 +10,7 @@ import uvicorn
 #import models and schema
 from app.schema.talk_schema import KakaoAPI
 from app.core.config import settings
-from app.db.model import model
+from app.db.model import Chat
 from app.db.connection import get_db
 
 #for vector database   
@@ -22,15 +22,13 @@ from sqlalchemy.orm import session
 from sqlalchemy.sql import func
 from datetime import datetime, timezone, timedelta
 
-
-
-openai.api_key = OPENAI_API_KEY
+openai.api_key = settings.OPENAI_API_KEY
 
 COLLECTION_NAME = 'anubot-unified'
 
 qdrant_client = QdrantClient(
-    url = QDRANT_URL,
-    port= QDRANT_PORT, 
+    url = settings.QDRANT_URL,
+    port= settings.QDRANT_PORT, 
 )
 
 def get_recent_chats(id):

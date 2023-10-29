@@ -1,7 +1,8 @@
 from sqlalchemy import Column, Integer, String, DateTime, text
 from sqlalchemy.sql import func
+from sqlalchemy.ext.declarative import declarative_base
 
-from database import Base
+Base = declarative_base()
 
 class Chat(Base):
     __tablename__ = 'Talks'
