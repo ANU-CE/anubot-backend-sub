@@ -1,8 +1,9 @@
-from app.db.session import SessionLocal
+from app.db.session import engine, SessionLocal
+from typing import Generator
 
-def get_db():
-    db = SessionLocal()
+def get_db() -> Generator:
     try:
+        db = SessionLocal()
         yield db
     finally:
         db.close()

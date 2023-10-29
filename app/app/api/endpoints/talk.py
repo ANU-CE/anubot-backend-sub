@@ -1,6 +1,6 @@
 import requests
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import ORJSONResponse
 
@@ -18,7 +18,7 @@ from qdrant_client import QdrantClient
 import openai
 
 #for DB
-from sqlalchemy.orm import session
+from sqlalchemy.orm import Session
 from sqlalchemy.sql import func
 from datetime import datetime, timezone, timedelta
 
@@ -31,15 +31,13 @@ qdrant_client = QdrantClient(
     port= settings.QDRANT_PORT, 
 )
 
-def get_recent_chats(id):
-    session = Depends(get_db)
+def get_recent_chats(id, session: Session):
     chats = session.query(Chat).filter(Chat.id == id).order_by(Chat.datetime.desc()).limit(3).all()
     session.close()
     print (chats)
     return [f'{chat.chat}\n{chat.reply}' for chat in chats] if chats else []
 
-def save_ask(question, final_response, id):
-    session = Depends(get_db)
+def save_ask(question, final_response, id, session: Session):
     chat = Chat(chat=question, reply=final_response, id=id)
     session.add(chat)
     session.commit()
@@ -79,14 +77,14 @@ def build_prompt(question: str, references: list, saved_ask: list) -> str:
     return prompt
 
 
-async def prompt_ask(question: str, callback_url: str, id: str):
+async def prompt_ask(question: str, callback_url: str, id: str, session: Session):
     similar_docs = qdrant_client.search(
         collection_name='anubot-unified',
-        query_vector=openai.Embedding.create(input=question, model=EMBEDDING_MODEL)["data"][0]["embedding"],
+        query_vector=openai.Embedding.create(input=question, model=settings.EMBEDDING_MODEL)["data"][0]["embedding"],
         limit=5,
         append_payload=True,
     )
-    saved_ask = get_recent_chats(id)
+    saved_ask = get_recent_chats(id, session)
 
     print('생성중')
     prompt= build_prompt(question, similar_docs, saved_ask)
@@ -115,15 +113,15 @@ async def prompt_ask(question: str, callback_url: str, id: str):
     responseCode = requests.post(callback_url, json=responseBody)
     print(final_response)
     print('반환 완료!')
-    save_ask(question, final_response, id)
+    save_ask(question, final_response, id, session)
     print('저장 완료!')
 
 router = APIRouter()
 
 @router.post(path='/ask', response_model=KakaoAPI, description='API for KakaoTalk Chatbot, with Callback Function')
-async def ask(item: KakaoAPI):
+async def ask(item: KakaoAPI, session: Session = Depends(get_db)):
     try:
-        task = asyncio.create_task(prompt_ask(item.userRequest.utterance, item.userRequest.callbackUrl, item.userRequest.user.id))
+        task = asyncio.create_task(prompt_ask(item.userRequest.utterance, item.userRequest.callbackUrl, item.userRequest.user.id, session))
     except requests.exceptions.ReadTimeout:
         pass
     print('반환중')
