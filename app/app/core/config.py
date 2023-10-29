@@ -24,7 +24,7 @@ class Settings(BaseSettings):
 
     SECRET_KEY:str = os.getenv('SECRET_KEY')
     ALGORITHM:str = os.getenv('ALGORITHM')
-    ACCESS_TOKEN_EXPIRE_MINUTES:str = os.getenv('ACCESS_TOKEN_EXPIRE_MINUTES')
+    ACCESS_TOKEN_EXPIRE_MINUTES:int = 30
 
     DB_URL:str = f'mysql+pymysql://{DB_USERNAME}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_DATABASE}'
 

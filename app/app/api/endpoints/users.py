@@ -1,14 +1,28 @@
 from fastapi import APIRouter, HTTPException, Depends, Response
 
 from app.core.config import settings
-from app.schema.user_schema import UserForm, UserToken
+from app.schema.user_schema import UserForm, UserToken, UserLoginForm
 from app.crud.user_crud import create_user, get_user_by_id, verfiy_password
-from app.db.model import TUsers
+from app.db.model import TChats
 from app.db.connection import get_db
+
+from datetime import timedelta, datetime
 
 from sqlalchemy.orm import Session
 
+from jose import jwt
+
 router = APIRouter()
+
+def create_access_token(data: dict, expires_delta: timedelta | None = None):
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=15)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    return encoded_jwt
 
 @router.post(path="/signup", description="Register form")
 async def signup(new_user: UserForm, db: Session = Depends(get_db)):
@@ -22,7 +36,7 @@ async def signup(new_user: UserForm, db: Session = Depends(get_db)):
     return HTTPException(status_code=200, detail="User created")
 
 @router.post(path="/login", description="Login form")
-async def login(response: Response, user: UserForm, db: Session = Depends(get_db)):
+async def login(response: Response, user: UserLoginForm, db: Session = Depends(get_db)):
     db_user = get_user_by_id(user.id, db)
 
     if not db_user:
@@ -41,7 +55,7 @@ async def login(response: Response, user: UserForm, db: Session = Depends(get_db
 
 @router.get(path="/logout", description="Logout form")
 async def logout(response: Response):
-    access_token = response.cookies.get("access_token")
+
     response.delete_cookie(key="access_token")
 
     return HTTPException(status_code=200, detail="Logout success")

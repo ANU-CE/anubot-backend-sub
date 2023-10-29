@@ -11,8 +11,8 @@ class Chat(Base):
     reply = Column(String(255))
     datetime = Column(DateTime, server_default=func.now())
 
-class TUsers(Base):
-    __tablename__ = 'TUsers'
+class TChats(Base):
+    __tablename__ = 'TChats'
     user_no = Column(Integer, primary_key=True, autoincrement=True)
     id = Column(String(255))
     name = Column(String(255))
