@@ -1,28 +1,20 @@
 from fastapi import APIRouter, HTTPException, Depends, Response
+from fastapi.responses import ORJSONResponse
 
 from app.core.config import settings
 from app.schema.user_schema import UserForm, UserToken, UserLoginForm
-from app.crud.user_crud import create_user, get_user_by_id, verfiy_password
+from app.crud.user_crud import create_user, get_user_by_id, verfiy_password, create_access_token, get_current_user, get_user
 from app.db.model import TChats
 from app.db.connection import get_db
 
 from datetime import timedelta, datetime
+from typing import Annotated
 
 from sqlalchemy.orm import Session
 
 from jose import jwt
 
 router = APIRouter()
-
-def create_access_token(data: dict, expires_delta: timedelta | None = None):
-    to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(minutes=15)
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
-    return encoded_jwt
 
 @router.post(path="/signup", description="Register form")
 async def signup(new_user: UserForm, db: Session = Depends(get_db)):
@@ -59,3 +51,24 @@ async def logout(response: Response):
     response.delete_cookie(key="access_token")
 
     return HTTPException(status_code=200, detail="Logout success")
+
+@router.get(path="/fetch", description="Fetch user info, recent 3 chats")
+async def fetch_user(response: Response, db: Session = Depends(get_db)):
+    user = get_current_user(response.cookies.get("access_token"))
+
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+    
+    recent_chats = get_recent_chats(user.id, db)
+    
+    return ORJSONResponse(content={"user": user, "recent_chats": recent_chats})
+
+@router.get(path="/chat", description="Chat with AnuBot")
+async def web_chat(response: Response, db: Session = Depedns(get_db)):
+    user = get_current_user(response.cookies.get("access_token"))
+
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+    
+    recent_chats = get_recent_chats(user.id, db)
+    
