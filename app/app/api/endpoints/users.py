@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 
 from jose import jwt
 
-qdrant_setings()
+qdrant_settings()
 router = APIRouter()
 
 
@@ -75,7 +75,10 @@ async def login(response: Response, user: UserLoginForm, db: Session = Depends(g
 
     response.set_cookie(key="access_token", value=access_token, expires=access_token_expoires, httponly=True)
 
-    return UserToken(access_token=access_token, token_type="bearer")
+    recent_chats = get_recent_chats(db_user.id, db)
+    username = db_user.name
+
+    return UserToken(access_token=access_token, token_type="bearer", recent_chats=recent_chats, username=username)
 
 @router.get(path="/logout", description="Logout form")
 async def logout(response: Response):
@@ -83,17 +86,6 @@ async def logout(response: Response):
     response.delete_cookie(key="access_token")
 
     return HTTPException(status_code=200, detail="Logout success")
-
-@router.get(path="/fetch", description="Fetch user info, recent 3 chats")
-async def fetch_user(response: Response, db: Session = Depends(get_db)):
-    user = get_current_user(response.cookies.get("access_token"))
-
-    if not user:
-        raise HTTPException(status_code=401, detail="User not found")
-    
-    recent_chats = get_recent_chats(user.id, db)
-    
-    return ORJSONResponse(content={"user": user, "recent_chats": recent_chats})
 
 @router.get(path="/chat", description="Chat with AnuBot")
 async def web_chat(response: Response, db: Session = Depedns(get_db)):
@@ -104,3 +96,5 @@ async def web_chat(response: Response, db: Session = Depedns(get_db)):
 
     chat_result = chat_ask()
     
+    return ORJSONResponse(content={"chat": chat_result})
+

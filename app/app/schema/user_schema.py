@@ -33,6 +33,8 @@ class UserLoginForm(BaseModel):
 class UserToken(BaseModel):
     access_token: str
     token_type: str
+    recent_chats: list
+    username: str
 
 class UserInDB(UserForm):
     hashed_password: str
