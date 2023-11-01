@@ -2,11 +2,11 @@ from fastapi import APIRouter, HTTPException, Depends, Response
 from fastapi.responses import ORJSONResponse
 
 from app.core.config import settings
-from app.schema.user_schema import UserForm, UserToken, UserLoginForm
+from app.schema.user_schema import UserForm, UserToken, UserLoginForm, ChatQuestionForm, ChatResponseForm
 from app.crud.user_crud import create_user, get_user_by_id, verfiy_password, create_access_token, get_current_user, get_user, get_recent_chats
 from app.db.model import TChats
 from app.db.connection import get_db
-from app.api.endpoints.talk import qdrant_setings, build_prompt, save_ask
+from app.api.endpoints.talk import qdrant_settings, build_prompt, save_ask
 
 import openai
 
@@ -88,13 +88,13 @@ async def logout(response: Response):
     return HTTPException(status_code=200, detail="Logout success")
 
 @router.get(path="/chat", description="Chat with AnuBot")
-async def web_chat(response: Response, db: Session = Depedns(get_db)):
+async def web_chat(item: ChatQuestionForm, response: Response, db: Session = Depends(get_db)):
     user = get_current_user(response.cookies.get("access_token"))
 
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
 
-    chat_result = chat_ask()
+    chat_result = chat_ask(item.chat, user.id, db)
     
-    return ORJSONResponse(content={"chat": chat_result})
+    return ORJSONResponse(content={"reply": chat_result})
 

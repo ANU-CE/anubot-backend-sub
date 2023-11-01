@@ -38,3 +38,10 @@ class UserToken(BaseModel):
 
 class UserInDB(UserForm):
     hashed_password: str
+
+class ChatQuestionForm(BaseModel):
+    chat: str
+
+class ChatResponseForm(BaseModel):
+    reply: str
+    datetime: str

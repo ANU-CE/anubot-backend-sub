@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.sql import func
 from datetime import datetime, timezone, timedelta
 
-def qdrant_setings():
+def qdrant_settings():
     openai.api_key = settings.OPENAI_API_KEY
 
     COLLECTION_NAME = 'anubot-unified'
@@ -32,7 +32,17 @@ def qdrant_setings():
         port= settings.QDRANT_PORT, 
     )
 
-qdrant_setings
+
+openai.api_key = settings.OPENAI_API_KEY
+
+COLLECTION_NAME = 'anubot-unified'
+
+qdrant_client = QdrantClient(
+    url = settings.QDRANT_URL,
+    port= settings.QDRANT_PORT, 
+)
+
+#qdrant_settings()
 
 def get_recent_chats(id, session: Session):
     chats = session.query(Chat).filter(Chat.id == id).order_by(Chat.datetime.desc()).limit(3).all()
