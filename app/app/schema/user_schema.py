@@ -34,6 +34,7 @@ class UserToken(BaseModel):
     access_token: str
     token_type: str
     recent_chats: list
+    id: str
     username: str
 
 class UserInDB(UserForm):

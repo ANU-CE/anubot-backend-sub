@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, Response
+from fastapi import APIRouter, HTTPException, Depends, Response, Request
 from fastapi.responses import ORJSONResponse
 
 from app.core.config import settings
@@ -15,13 +15,22 @@ from typing import Annotated
 
 from sqlalchemy.orm import Session
 
+from qdrant_client import QdrantClient
+
 from jose import jwt
 
-qdrant_settings()
+openai.api_key = settings.OPENAI_API_KEY
+
+COLLECTION_NAME = 'anubot-unified'
+
+qdrant_client = QdrantClient(
+    url = settings.QDRANT_URL,
+    port= settings.QDRANT_PORT, 
+)
 router = APIRouter()
 
 
-async def chat_ask(question, id, session: Session):
+def chat_ask(question, id, session: Session):
     similar_docs = qdrant_client.search(
         collection_name='anubot-unified',
         query_vector=openai.Embedding.create(input=question, model=settings.EMBEDDING_MODEL)["data"][0]["embedding"],
@@ -76,9 +85,8 @@ async def login(response: Response, user: UserLoginForm, db: Session = Depends(g
     response.set_cookie(key="access_token", value=access_token, expires=access_token_expoires, httponly=True)
 
     recent_chats = get_recent_chats(db_user.id, db)
-    username = db_user.name
 
-    return UserToken(access_token=access_token, token_type="bearer", recent_chats=recent_chats, username=username)
+    return UserToken(access_token=access_token, token_type="bearer", recent_chats=recent_chats, username=db_user.name, id=db_user.id)
 
 @router.get(path="/logout", description="Logout form")
 async def logout(response: Response):
@@ -87,9 +95,9 @@ async def logout(response: Response):
 
     return HTTPException(status_code=200, detail="Logout success")
 
-@router.get(path="/chat", description="Chat with AnuBot")
-async def web_chat(item: ChatQuestionForm, response: Response, db: Session = Depends(get_db)):
-    user = get_current_user(response.cookies.get("access_token"))
+@router.post(path="/webchat", description="Chat with AnuBot")
+async def web_chat(item: ChatQuestionForm, request: Request, db: Session = Depends(get_db)):
+    user = await get_current_user(request.cookies.get("access_token"), db)
 
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
