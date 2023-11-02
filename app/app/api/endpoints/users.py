@@ -97,6 +97,9 @@ async def logout(response: Response):
 
 @router.post(path="/webchat", description="Chat with AnuBot")
 async def web_chat(item: ChatQuestionForm, request: Request, db: Session = Depends(get_db)):
+    if request.cookies.get("access_token") is None:
+        raise HTTPException(status_code=401, detail="Please login before chat")
+
     user = await get_current_user(request.cookies.get("access_token"), db)
 
     if not user:
