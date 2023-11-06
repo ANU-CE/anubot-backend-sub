@@ -12,12 +12,13 @@ class UserForm(BaseModel):
         if v.isspace():
             raise HTTPException(status_code=422, detail='항목은 반드시 입력해주세요.')
         return v
-
+'''
     @validator('password')
     def user_password_must_8_length(cls, v):
         if len(v) < 8:
             raise HTTPException(status_code=422, detail='비밀번호는 8자리 이상이어야 합니다.')
         return v
+'''
 
 class UserLoginForm(BaseModel):
     id: str
@@ -32,3 +33,16 @@ class UserLoginForm(BaseModel):
 class UserToken(BaseModel):
     access_token: str
     token_type: str
+    recent_chats: list
+    id: str
+    username: str
+
+class UserInDB(UserForm):
+    hashed_password: str
+
+class ChatQuestionForm(BaseModel):
+    chat: str
+
+class ChatResponseForm(BaseModel):
+    reply: str
+    datetime: str
