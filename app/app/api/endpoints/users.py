@@ -64,7 +64,7 @@ async def signup(new_user: UserForm, db: Session = Depends(get_db)):
     if user:
         raise HTTPException(status_code=409, detail="User already exists")
     
-    create_user(new_user, db)
+    await create_user(new_user, db)
 
     return HTTPException(status_code=200, detail="User created")
 
