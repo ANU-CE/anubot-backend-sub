@@ -12,7 +12,9 @@ app.include_router(api_router, prefix="/api/v1")
 def default_route():
     return {'Hello':"GET"}
 origins = [
-    "*"
+    "https://anubot-maryoh2003.vercel.app",
+    "http://localhost:5000",
+    "http://anubot-maryoh2003.vercel.app",
 ]
 app.add_middleware(
     CORSMiddleware,
