@@ -82,7 +82,7 @@ async def login(response: Response, user: UserLoginForm, db: Session = Depends(g
         data={"sub": user.id}, expires_delta=access_token_expoires
     )
 
-    response.set_cookie(key="access_token", value=access_token, expires=access_token_expoires, httponly=True)
+    response.set_cookie(key="access_token", value=access_token, expires=access_token_expoires, samesite='none', secure=True)
 
     recent_chats = get_recent_chats(db_user.id, db)
 

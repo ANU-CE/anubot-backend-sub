@@ -31,7 +31,9 @@ def verfiy_password(plain_password, hashed_password):
 
 # Get recent 3 data(chats) related with user id
 def get_recent_chats(id: str, db: Session = Depends(get_db)):
-    return db.query(Chat).filter(Chat.id == id).order_by(Chat.datetime.desc()).limit(3).all()
+    chats = db.query(Chat).filter(Chat.id == id).limit(3).all()
+    print([f"{chat.chat}\n{chat.reply}" for chat in chats] if chats else [])
+    return [f'{chat.chat}\n{chat.reply}' for chat in chats] if chats else []
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None):
     to_encode = data.copy()
