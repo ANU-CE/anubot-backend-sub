@@ -15,9 +15,9 @@ app.add_middleware(HTTPSRedirectMiddleware)
 def default_route():
     return {'Hello':"GET"}
 origins = [
-    "https://anubot-maryoh2003.vercel.app/",
+    "https://anubot-maryoh2003.vercel.app",
     "http://localhost:5000",
-    "http://anubot-maryoh2003.vercel.app/",
+    "http://anubot-maryoh2003.vercel.app",
     "http://localhost",
     "http://localhost:3000",
 ]
